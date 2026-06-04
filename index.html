@@ -1,3 +1,41 @@
+ChatGPT
+
+
+
+
+
+
+
+
+
+Text enganxat(6).text
+Fitxer
+en esto el apartado "Evolució temporal" no me carga bien los datos, sin tocar absolutamente nada más, puedes arreglarlo?
+
+Voy a tocar solo la lógica del apartado Evolució temporal y dejar el resto del HTML intacto. Primero verifico el problema más probable: parsing de fechas y generación de periodos.
+
+He localizado el punto sensible: el gráfico temporal depende de dateObj, y ese objeto solo se crea si la fecha llega exactamente como dd/mm/yyyy. Si Google Sheets o el CSV devuelve otro formato, el panel queda sin periodos aunque el resto de datos sí cargue.
+
+S’ha pensat durant 1m 12s
+Arreglado. He generado una copia del HTML tocando solo la función renderTemporal().
+
+Cambios aplicados:
+
+Ahora Evolució temporal no depende solo de dateObj.
+
+Acepta fechas en formatos habituales: dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd, ISO y Date(...).
+
+Evita desplazamientos de día por toISOString() usando fechas locales.
+
+También he protegido los colores cuando hay más reptes que colores definidos.
+
+Archivo corregido:
+
+Descargar HTML corregido
+
+He partido del archivo que subiste. 
+
+
 <!DOCTYPE html>
 <html lang="ca">
 <head>
@@ -820,26 +858,58 @@ function renderTemporal() {
   const mode  = document.getElementById('temMode').value;
   const split = document.getElementById('temSplit').value;
 
-  function period(d) {
+  function pad2(n) { return String(n).padStart(2,'0'); }
+
+  function localKey(d) {
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  }
+
+  function parseTemporalDate(row) {
+    if (row.dateObj instanceof Date && !isNaN(row.dateObj)) {
+      return new Date(row.dateObj.getFullYear(), row.dateObj.getMonth(), row.dateObj.getDate());
+    }
+
+    const s = String(row.data || '').trim();
+    if (!s) return null;
+
+    // Formats habituals: dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd, ISO i Date(yyyy,m,d)
+    let m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
+    if (m) {
+      let y = parseInt(m[3],10); if (y < 100) y += 2000;
+      return new Date(y, parseInt(m[2],10)-1, parseInt(m[1],10));
+    }
+
+    m = s.match(/^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})/);
+    if (m) return new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+
+    m = s.match(/^Date\((\d{4}),(\d{1,2}),(\d{1,2})/);
+    if (m) return new Date(parseInt(m[1],10), parseInt(m[2],10), parseInt(m[3],10));
+
+    const d = new Date(s);
+    return isNaN(d) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  function period(row) {
+    const d = parseTemporalDate(row);
     if (!d) return null;
-    if (gran === 'month') return d.toISOString().slice(0,7);
-    if (gran === 'day')   return d.toISOString().slice(0,10);
-    // week → Monday
+    if (gran === 'month') return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
+    if (gran === 'day')   return localKey(d);
+    // week → dilluns, en hora local per evitar desplaçaments UTC
     const w = new Date(d); w.setHours(0,0,0,0);
     const diff = w.getDate() - w.getDay() + (w.getDay()===0?-6:1);
     w.setDate(diff);
-    return w.toISOString().slice(0,10);
+    return localKey(w);
   }
 
   // Collect periods
   const pSet = new Set();
-  filteredData.forEach(d=>{ const p=period(d.dateObj); if(p) pSet.add(p); });
+  filteredData.forEach(d=>{ const p=period(d); if(p) pSet.add(p); });
   const periods = [...pSet].sort();
   if (!periods.length) { showNoData('temporalCanvas'); return; }
 
   function buildSeries(items) {
     const m={};
-    items.forEach(d=>{ const p=period(d.dateObj); if(p) m[p]=(m[p]||0)+1; });
+    items.forEach(d=>{ const p=period(d); if(p) m[p]=(m[p]||0)+1; });
     return periods.map(p=>m[p]||0);
   }
   function cumulate(arr) { let s=0; return arr.map(v=>s+=v); }
@@ -856,7 +926,7 @@ function renderTemporal() {
     const reptes = [...new Set(filteredData.map(d=>d.num_repte))].sort((a,b)=>a-b);
     datasets = reptes.map((r,i)=>{
       const s = buildSeries(filteredData.filter(d=>d.num_repte===r));
-      return { label:`Repte ${r}`, data:mode==='cumul'?cumulate(s):s, borderColor:COLORS[i], backgroundColor:COLORS[i]+'20', fill:mode==='cumul', tension:.35, pointRadius:3 };
+      return { label:`Repte ${r}`, data:mode==='cumul'?cumulate(s):s, borderColor:COLORS[i % COLORS.length], backgroundColor:COLORS[i % COLORS.length]+'20', fill:mode==='cumul', tension:.35, pointRadius:3 };
     });
   } else {
     const s = buildSeries(filteredData);
@@ -866,7 +936,8 @@ function renderTemporal() {
   function fmtPeriod(p) {
     const MOS=['Gen','Feb','Mar','Abr','Mai','Jun','Jul','Ago','Set','Oct','Nov','Des'];
     if (gran==='month') { const [y,m]=p.split('-'); return `${MOS[+m-1]} ${y.slice(2)}`; }
-    const d=new Date(p); return `${d.getDate()}/${d.getMonth()+1}${gran==='day'?'':'/'+(gran==='week'?d.getFullYear().toString().slice(2):'')}`;
+    const [y,m,d]=p.split('-');
+    return `${parseInt(d,10)}/${parseInt(m,10)}${gran==='day'?'':'/'+y.slice(2)}`;
   }
 
   const ctx = document.getElementById('temporalCanvas').getContext('2d');
@@ -979,3 +1050,4 @@ window.addEventListener('DOMContentLoaded', loadFromGoogleSheets);
 </script>
 </body>
 </html>
+
