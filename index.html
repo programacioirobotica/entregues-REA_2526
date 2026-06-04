@@ -101,17 +101,15 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:
 .canvas-box canvas { max-height: 380px; }
 
 /* ── Table ── */
-.tbl-wrap { overflow: auto; max-height: 460px; border-radius: 6px; border: 1px solid var(--border); }
-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: .8rem; }
+.tbl-wrap { overflow-x: auto; max-height: 460px; overflow-y: auto; border-radius: 6px; border: 1px solid var(--border); }
+table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: .8rem; }
 th {
   background: var(--accent); color: white; padding: 9px 11px;
   text-align: left; white-space: nowrap; position: sticky; top: 0;
   cursor: pointer; user-select: none; font-size: .77rem;
 }
 th:hover { background: #162e4d; }
-td { padding: 7px 11px; border-bottom: 1px solid #eee; vertical-align: top; }
-#mainTable th:nth-child(2), #mainTable td:nth-child(2) { min-width: 220px; max-width: 340px; white-space: normal; overflow-wrap: anywhere; }
-#mainTable th:nth-child(8), #mainTable td:nth-child(8) { min-width: 95px; text-align: center; white-space: nowrap; }
+td { padding: 7px 11px; border-bottom: 1px solid #eee; }
 tr:hover td { background: #f7f9fb; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .72rem; font-weight: 700; }
 .bt1 { background: #d5e8f7; color: #1a6fa0; }
@@ -409,13 +407,11 @@ tr:hover td { background: #f7f9fb; }
               <thead>
                 <tr>
                   <th onclick="sortBy('data')">Data ↕</th>
-                  <th onclick="sortBy('email')">Docent ↕</th>
                   <th onclick="sortBy('nivell')">Nivell ↕</th>
                   <th onclick="sortBy('grup')">Grup ↕</th>
                   <th onclick="sortBy('temporada')">Temp. ↕</th>
                   <th onclick="sortBy('num_repte')">Repte ↕</th>
                   <th onclick="sortBy('robot')">Robot ↕</th>
-                  <th>Vídeo</th>
                 </tr>
               </thead>
               <tbody id="tblBody"></tbody>
@@ -511,14 +507,28 @@ function buildData(rows) {
   const find = (...parts) => keys.find(k => parts.every(p => norm(k).includes(p))) || '';
 
   const cData  = find('data','hora');
-  const cEmail = find('email') || keys.find(k => { const nk = norm(k); return nk.includes('correu') || nk.includes('adreca electronica') || nk.includes('adreca') || nk.includes('docent'); }) || '';
+  const cEmail = find('email') || keys.find(k => {
+    const nk = norm(k);
+    return nk.includes('correu') || nk.includes('mail') || nk.includes('adreca electronica') || nk.includes('adreca') || nk.includes('docent');
+  }) || '';
   const cNivell= find('nivell');
   const cGrup  = find('grup');
   const cTemp  = find('temporada');
   const cRepte = find('repte');
   const cRobot = find('robot');
-  const cVideo = keys.find(k => { const nk = norm(k); return nk.includes('video') || nk.includes('vdeo') || nk.includes('vide') || nk.includes('enllac') || nk.includes('link'); }) || '';
+  const cVideo = keys.find(k => {
+    const nk = norm(k);
+    return nk.includes('video') || nk.includes('vdeo') || nk.includes('vide') || nk.includes('enllac') || nk.includes('link') || nk.includes('url');
+  }) || '';
   const cIncorp= find('incorporat');
+  const cell = (row, col) => (col && row[col] != null ? String(row[col]).trim() : '');
+  const firstMatchingCell = (row, test) => {
+    for (const k of keys) {
+      const v = String(row[k] ?? '').trim();
+      if (v && test(v)) return v;
+    }
+    return '';
+  };
 
   allData = [];
   for (const row of rows) {
@@ -536,14 +546,14 @@ function buildData(rows) {
     allData.push({
       data:      dataStr,
       dateObj,
-      email:     (row[cEmail]  || '').trim(),
-      nivell:    (row[cNivell] || '').trim(),
-      grup:      (row[cGrup]   || '').trim(),
+      email:     cell(row, cEmail) || firstMatchingCell(row, v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)),
+      nivell:    cell(row, cNivell),
+      grup:      cell(row, cGrup),
       temporada: temp === '1' ? 'T1' : 'T2',
       num_repte: rn,
-      robot:     (row[cRobot]  || 'Desconegut').trim() || 'Desconegut',
-      video:     (row[cVideo]  || '').trim(),
-      incorporat:(row[cIncorp] || '').trim(),
+      robot:     cell(row, cRobot) || 'Desconegut',
+      video:     cell(row, cVideo) || firstMatchingCell(row, v => /^https?:\/\//i.test(v)),
+      incorporat:cell(row, cIncorp),
     });
   }
 
@@ -933,13 +943,11 @@ function renderTable() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${escHtml(d.data)}</td>
-      <td title="${escHtml(d.email)}">${escHtml(d.email || '—')}</td>
       <td>${escHtml(d.nivell)}</td>
       <td style="text-align:center">${escHtml(d.grup)}</td>
       <td><span class="badge b${d.temporada.toLowerCase()}">${d.temporada}</span></td>
       <td style="text-align:center;font-weight:700">${d.num_repte}</td>
-      <td>${escHtml(d.robot)}</td>
-      <td>${d.video?`<a href="${escHtml(d.video)}" target="_blank" rel="noopener" style="color:#2980b9;text-decoration:none">▶ Veure</a>`:'—'}</td>`;
+      <td>${escHtml(d.robot)}</td>`;
     body.appendChild(tr);
   });
 }
@@ -954,8 +962,8 @@ function sortBy(col) {
 // EXPORT
 // ─────────────────────────────────────────────
 function exportCSV() {
-  const hdr = ['Data_hora','Email_docent','Nivell','Grup','Temporada','Num_repte','Robot','Video','Incorporat'];
-  const rows = filteredData.map(d=>[d.data,d.email,d.nivell,d.grup,d.temporada,d.num_repte,d.robot,d.video,d.incorporat]);
+  const hdr = ['Data_hora','Nivell','Grup','Temporada','Num_repte','Robot','Incorporat'];
+  const rows = filteredData.map(d=>[d.data,d.nivell,d.grup,d.temporada,d.num_repte,d.robot,d.incorporat]);
   const csv = [hdr,...rows].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
