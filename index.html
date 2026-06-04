@@ -101,15 +101,17 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:
 .canvas-box canvas { max-height: 380px; }
 
 /* ── Table ── */
-.tbl-wrap { overflow-x: auto; max-height: 460px; overflow-y: auto; border-radius: 6px; border: 1px solid var(--border); }
-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.tbl-wrap { overflow: auto; max-height: 460px; border-radius: 6px; border: 1px solid var(--border); }
+table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: .8rem; }
 th {
   background: var(--accent); color: white; padding: 9px 11px;
   text-align: left; white-space: nowrap; position: sticky; top: 0;
   cursor: pointer; user-select: none; font-size: .77rem;
 }
 th:hover { background: #162e4d; }
-td { padding: 7px 11px; border-bottom: 1px solid #eee; }
+td { padding: 7px 11px; border-bottom: 1px solid #eee; vertical-align: top; }
+#mainTable th:nth-child(2), #mainTable td:nth-child(2) { min-width: 220px; max-width: 340px; white-space: normal; overflow-wrap: anywhere; }
+#mainTable th:nth-child(8), #mainTable td:nth-child(8) { min-width: 95px; text-align: center; white-space: nowrap; }
 tr:hover td { background: #f7f9fb; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .72rem; font-weight: 700; }
 .bt1 { background: #d5e8f7; color: #1a6fa0; }
@@ -509,13 +511,13 @@ function buildData(rows) {
   const find = (...parts) => keys.find(k => parts.every(p => norm(k).includes(p))) || '';
 
   const cData  = find('data','hora');
-  const cEmail = find('email');
+  const cEmail = find('email') || keys.find(k => { const nk = norm(k); return nk.includes('correu') || nk.includes('adreca electronica') || nk.includes('adreca') || nk.includes('docent'); }) || '';
   const cNivell= find('nivell');
   const cGrup  = find('grup');
   const cTemp  = find('temporada');
   const cRepte = find('repte');
   const cRobot = find('robot');
-  const cVideo = keys.find(k => norm(k).includes('video') || norm(k).includes('vdeo') || norm(k).includes('vide')) || '';
+  const cVideo = keys.find(k => { const nk = norm(k); return nk.includes('video') || nk.includes('vdeo') || nk.includes('vide') || nk.includes('enllac') || nk.includes('link'); }) || '';
   const cIncorp= find('incorporat');
 
   allData = [];
@@ -930,13 +932,13 @@ function renderTable() {
   sorted.forEach(d => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${d.data}</td>
-      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.email}">${d.email}</td>
-      <td>${d.nivell}</td>
-      <td style="text-align:center">${d.grup}</td>
+      <td>${escHtml(d.data)}</td>
+      <td title="${escHtml(d.email)}">${escHtml(d.email || '—')}</td>
+      <td>${escHtml(d.nivell)}</td>
+      <td style="text-align:center">${escHtml(d.grup)}</td>
       <td><span class="badge b${d.temporada.toLowerCase()}">${d.temporada}</span></td>
       <td style="text-align:center;font-weight:700">${d.num_repte}</td>
-      <td>${d.robot}</td>
+      <td>${escHtml(d.robot)}</td>
       <td>${d.video?`<a href="${escHtml(d.video)}" target="_blank" rel="noopener" style="color:#2980b9;text-decoration:none">▶ Veure</a>`:'—'}</td>`;
     body.appendChild(tr);
   });
@@ -1003,7 +1005,7 @@ function mk(tag,cls,txt,attrs={}) {
   const el=document.createElement(tag); el.className=cls; el.textContent=txt;
   Object.entries(attrs).forEach(([k,v])=>el[k]=v); return el;
 }
-function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+function escHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // ─────────────────────────────────────────────
 // AUTO-LOAD
@@ -1012,4 +1014,3 @@ window.addEventListener('DOMContentLoaded', loadFromGoogleSheets);
 </script>
 </body>
 </html>
-
